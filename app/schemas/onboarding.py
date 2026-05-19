@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LeadWebhookPayload(BaseModel):
@@ -45,6 +45,18 @@ class PreviewSchedulePayload(BaseModel):
     fecha_llegada: str
 
     @field_validator("nombre", "email", "whatsapp", "fecha_reserva", "fecha_llegada", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+
+class ProcessScheduledEmailsPayload(BaseModel):
+    now: str | None = None
+    limit: int = Field(default=10, ge=1, le=100)
+
+    @field_validator("now", mode="before")
     @classmethod
     def empty_string_to_none(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():

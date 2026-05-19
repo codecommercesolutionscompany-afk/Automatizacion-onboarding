@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.schemas.onboarding import (
     LeadWebhookPayload,
+    ProcessScheduledEmailsPayload,
     PreviewSchedulePayload,
     SendEmailPayload,
 )
@@ -24,6 +25,9 @@ from app.services.schedule_service import (
 )
 from app.services.sheet_service import (
     check_sent_email,
+    claim_due_scheduled_emails,
+    mark_scheduled_email_failed,
+    mark_scheduled_email_sent,
     register_cm_task,
     register_email_sent,
     register_scheduled_email,
@@ -193,6 +197,26 @@ def register_cm_tasks_for_schedule(
     return registered_count, duplicate_count
 
 
+def summarize_processing_error(exc: Exception) -> str:
+    message = str(exc).strip() or exc.__class__.__name__
+    return message[:300]
+
+
+def validate_claimed_email_item(item: dict) -> tuple[int | None, str | None, str | None]:
+    row_number = item.get("row_number")
+    email = item.get("correo")
+    email_id = item.get("email_id")
+
+    try:
+        parsed_row_number = int(row_number)
+    except (TypeError, ValueError):
+        parsed_row_number = None
+
+    parsed_email = str(email).strip() if email else None
+    parsed_email_id = str(email_id).strip() if email_id else None
+    return parsed_row_number, parsed_email, parsed_email_id
+
+
 @router.post("")
 def onboarding_webhook(lead: LeadWebhookPayload) -> dict:
     """Procesa el webhook del CRM y dispara onboarding si el lead califica."""
@@ -271,6 +295,112 @@ def onboarding_webhook(lead: LeadWebhookPayload) -> dict:
         "scheduled_duplicate_count": scheduled_duplicate_count,
         "cm_tasks_count": cm_tasks_count,
         "cm_tasks_duplicate_count": cm_tasks_duplicate_count,
+    }
+
+
+@router.post("/process-scheduled-emails")
+def process_scheduled_emails(
+    payload: ProcessScheduledEmailsPayload | None = None,
+) -> dict:
+    payload = payload or ProcessScheduledEmailsPayload()
+    now = parse_pdc_datetime(payload.now) if payload.now else datetime.now(PDC_TIMEZONE)
+    if not now:
+        raise HTTPException(
+            status_code=400,
+            detail="now debe tener formato ISO si se envia.",
+        )
+
+    claimed_emails = claim_due_scheduled_emails(now=now, limit=payload.limit)
+    items = []
+    sent_count = 0
+    failed_count = 0
+
+    for claimed_email in claimed_emails:
+        row_number, email, email_id = validate_claimed_email_item(claimed_email)
+        item_result = {
+            "row_number": row_number,
+            "email": email,
+            "email_id": email_id,
+            "status": "failed",
+            "sheet_marked": False,
+        }
+
+        if row_number is None or not email or not email_id:
+            error_message = "Fila reclamada incompleta: faltan row_number, correo o email_id."
+            item_result["error"] = error_message
+            failed_count += 1
+            logger.warning(
+                "Email programado invalido. row_number=%s email=%s email_id=%s",
+                row_number,
+                email,
+                email_id,
+            )
+            items.append(item_result)
+            continue
+
+        try:
+            send_result = _send_pdc_email(
+                nombre=str(claimed_email.get("nombre") or ""),
+                email=email,
+                email_id=email_id,
+                whatsapp=claimed_email.get("whatsapp"),
+            )
+            sheet_marked = mark_scheduled_email_sent(
+                row_number=row_number,
+                email=email,
+                email_id=email_id,
+                observaciones="Enviado por procesador automatico",
+            )
+            sent_count += 1
+            item_result.update(
+                {
+                    "status": "sent",
+                    "sheet_marked": sheet_marked,
+                    "sheet_registered": send_result["sheet_registered"],
+                }
+            )
+            logger.warning(
+                "Email programado enviado. row_number=%s email=%s email_id=%s "
+                "sheet_marked=%s",
+                row_number,
+                email,
+                email_id,
+                sheet_marked,
+            )
+        except Exception as exc:
+            error_message = summarize_processing_error(exc)
+            sheet_marked = mark_scheduled_email_failed(
+                row_number=row_number,
+                email=email,
+                email_id=email_id,
+                observaciones=f"Error al enviar por Resend: {error_message}",
+            )
+            failed_count += 1
+            item_result.update(
+                {
+                    "status": "failed",
+                    "error": error_message,
+                    "sheet_marked": sheet_marked,
+                }
+            )
+            logger.exception(
+                "Fallo email programado. row_number=%s email=%s email_id=%s "
+                "sheet_marked=%s",
+                row_number,
+                email,
+                email_id,
+                sheet_marked,
+            )
+
+        items.append(item_result)
+
+    return {
+        "status": "ok",
+        "claimed_count": len(claimed_emails),
+        "processed_count": len(items),
+        "sent_count": sent_count,
+        "failed_count": failed_count,
+        "items": items,
     }
 
 

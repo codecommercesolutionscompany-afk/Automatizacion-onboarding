@@ -1,9 +1,11 @@
 import logging
+from datetime import datetime
 from typing import Any
 
 import requests
 
 from app.core.config import settings
+from app.services.schedule_service import PDC_TIMEZONE, ensure_pdc_timezone
 
 
 logger = logging.getLogger(__name__)
@@ -211,3 +213,86 @@ def register_cm_task(
         "observaciones": observaciones or "",
     }
     return post_to_sheet(payload, f"register_cm_task email={email} motivo={motivo}")
+
+
+def claim_due_scheduled_emails(
+    now: datetime | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    now_value = ensure_pdc_timezone(now or datetime.now(PDC_TIMEZONE))
+    payload = {
+        "action": "claim_due_scheduled_emails",
+        "now": now_value.isoformat(timespec="seconds"),
+        "limit": limit,
+    }
+    result = post_to_sheet(
+        payload,
+        f"claim_due_scheduled_emails now={payload['now']} limit={limit}",
+    )
+
+    if not result.get("ok"):
+        logger.error(
+            "No se pudieron reclamar emails programados vencidos. status=%s",
+            result.get("status"),
+        )
+        return []
+
+    emails = result.get("emails")
+    if not isinstance(emails, list):
+        logger.warning(
+            "Apps Script no devolvio una lista de emails. response_status=%s",
+            result.get("status"),
+        )
+        return []
+
+    return [email for email in emails if isinstance(email, dict)]
+
+
+def mark_scheduled_email_sent(
+    row_number: int,
+    email: str,
+    email_id: str,
+    observaciones: str | None = None,
+) -> bool:
+    payload = {
+        "action": "mark_scheduled_email_sent",
+        "row_number": row_number,
+        "correo": email,
+        "email_id": email_id,
+        "observaciones": observaciones or "",
+    }
+    result = post_to_sheet(
+        payload,
+        f"mark_scheduled_email_sent row_number={row_number} email={email} "
+        f"email_id={email_id}",
+    )
+    status = str(result.get("status", "")).lower()
+    estado = str(result.get("estado", "")).lower()
+    return bool(result.get("ok")) and (
+        status == "ok" or (status == "updated" and estado == "enviado")
+    )
+
+
+def mark_scheduled_email_failed(
+    row_number: int,
+    email: str,
+    email_id: str,
+    observaciones: str | None = None,
+) -> bool:
+    payload = {
+        "action": "mark_scheduled_email_failed",
+        "row_number": row_number,
+        "correo": email,
+        "email_id": email_id,
+        "observaciones": observaciones or "",
+    }
+    result = post_to_sheet(
+        payload,
+        f"mark_scheduled_email_failed row_number={row_number} email={email} "
+        f"email_id={email_id}",
+    )
+    status = str(result.get("status", "")).lower()
+    estado = str(result.get("estado", "")).lower()
+    return bool(result.get("ok")) and (
+        status == "ok" or (status == "updated" and estado == "fallido")
+    )
