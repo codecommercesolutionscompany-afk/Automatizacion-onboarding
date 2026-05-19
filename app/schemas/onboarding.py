@@ -8,10 +8,22 @@ class LeadWebhookPayload(BaseModel):
 
     nombre: str | None = None
     email: EmailStr | None = None
+    whatsapp: str | None = None
     estado: str | None = None
     producto: str | None = None
+    fecha_reserva: str | None = None
+    fecha_llegada: str | None = None
 
-    @field_validator("nombre", "email", "estado", "producto", mode="before")
+    @field_validator(
+        "nombre",
+        "email",
+        "whatsapp",
+        "estado",
+        "producto",
+        "fecha_reserva",
+        "fecha_llegada",
+        mode="before",
+    )
     @classmethod
     def empty_string_to_none(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
@@ -23,3 +35,18 @@ class SendEmailPayload(BaseModel):
     nombre: str
     email: EmailStr
     email_id: str
+
+
+class PreviewSchedulePayload(BaseModel):
+    nombre: str
+    email: EmailStr
+    whatsapp: str | None = None
+    fecha_reserva: str | None = None
+    fecha_llegada: str
+
+    @field_validator("nombre", "email", "whatsapp", "fecha_reserva", "fecha_llegada", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
