@@ -13,6 +13,7 @@ class Settings:
     resend_from_email: str | None = os.getenv("RESEND_FROM_EMAIL")
     pdc_confirmation_url: str | None = os.getenv("PDC_CONFIRMATION_URL")
     pdc_sheet_webhook_url: str | None = os.getenv("PDC_SHEET_WEBHOOK_URL")
+    pdc_cron_secret: str | None = os.getenv("PDC_CRON_SECRET")
 
 
 settings = Settings()

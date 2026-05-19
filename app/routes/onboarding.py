@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
+from app.core.config import settings
 from app.schemas.onboarding import (
     LeadWebhookPayload,
     ProcessScheduledEmailsPayload,
@@ -301,7 +302,17 @@ def onboarding_webhook(lead: LeadWebhookPayload) -> dict:
 @router.post("/process-scheduled-emails")
 def process_scheduled_emails(
     payload: ProcessScheduledEmailsPayload | None = None,
+    x_cron_secret: str | None = Header(default=None, alias="X-Cron-Secret"),
 ) -> dict:
+    if settings.pdc_cron_secret:
+        if x_cron_secret != settings.pdc_cron_secret:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    else:
+        logger.warning(
+            "PDC_CRON_SECRET no esta definida. "
+            "process-scheduled-emails se ejecuta sin proteccion."
+        )
+
     payload = payload or ProcessScheduledEmailsPayload()
     now = parse_pdc_datetime(payload.now) if payload.now else datetime.now(PDC_TIMEZONE)
     if not now:

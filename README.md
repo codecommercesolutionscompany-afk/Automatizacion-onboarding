@@ -18,11 +18,17 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=
 PDC_CONFIRMATION_URL=
 PDC_SHEET_WEBHOOK_URL=
+PDC_CRON_SECRET=
 ```
 
 `PDC_CONFIRMATION_URL` es opcional y se usa para reemplazar `[PEGAR_LINK_DE_CONFIRMACION]` cuando el HTML todavia no trae el link armado con `{{CORREO}}`.
 
 `PDC_SHEET_WEBHOOK_URL` permite registrar en Google Sheets los emails enviados correctamente.
+
+`PDC_CRON_SECRET` protege el procesador de emails programados. Si esta definido,
+`POST /api/v1/automatizacion/onboarding/process-scheduled-emails` debe recibir el
+header `X-Cron-Secret` con el mismo valor. Si no esta definido, el endpoint queda
+habilitado para desarrollo local y el backend loguea un warning.
 
 ## Correr local
 
@@ -79,6 +85,25 @@ Ejemplo:
   "email_id": "02-mochila"
 }
 ```
+
+### Procesador de emails programados
+
+```http
+POST /api/v1/automatizacion/onboarding/process-scheduled-emails
+X-Cron-Secret: valor-de-PDC_CRON_SECRET
+```
+
+Ejemplo:
+
+```json
+{
+  "now": "2026-05-19T09:30:00-03:00",
+  "limit": 10
+}
+```
+
+Si `PDC_CRON_SECRET` esta configurado, el header `X-Cron-Secret` es obligatorio.
+Si falta o no coincide, devuelve `401`.
 
 Respuesta esperada:
 
