@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.core.config import settings
+from app.routes.masterclass import router as masterclass_router
 from app.routes.onboarding import router as onboarding_router
 
 
@@ -12,6 +13,7 @@ app = FastAPI(
 )
 
 app.include_router(onboarding_router)
+app.include_router(masterclass_router)
 
 
 @app.get("/debug/env")
