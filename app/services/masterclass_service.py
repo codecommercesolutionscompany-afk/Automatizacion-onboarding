@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from app.schemas.masterclass import MasterclassAccessPayload
+from app.schemas.masterclass import MasterclassAccessPayload, MasterclassReminderPayload
 from app.services.resend_service import ResendServiceError, send_email_with_resend
 
 
@@ -15,6 +15,18 @@ MASTERCLASS_ACCESS_EMAIL_ID = "masterclass-acceso"
 MASTERCLASS_ACCESS_SUBJECT = "Tu acceso a la masterclass de Madre Selva"
 MASTERCLASS_EMAILS_DIR = Path(__file__).resolve().parents[1] / "emails" / "masterclass"
 MASTERCLASS_ACCESS_TEMPLATE = MASTERCLASS_EMAILS_DIR / "masterclass-acceso.html"
+MASTERCLASS_REMINDER_CONFIG = {
+    "2_dias": {
+        "email_id": "masterclass-recordatorio-2-dias",
+        "subject": "Recordatorio: tu masterclass es en 2 días",
+        "template": "masterclass-recordatorio-2-dias.html",
+    },
+    "hoy": {
+        "email_id": "masterclass-recordatorio-hoy",
+        "subject": "Hoy es la masterclass · Acá tenés tu acceso",
+        "template": "masterclass-recordatorio-hoy.html",
+    },
+}
 MASTERCLASS_CONFIRMATION_BASE_URL = (
     "https://script.google.com/macros/s/"
     "AKfycbwVmvIs6zlvErXT24Gn4IlW6sYe6cuHJRwQFWTaBGGBxdYLcGpV7Kxlwir7nIx2xJCU/exec"
@@ -44,6 +56,18 @@ def load_masterclass_access_template() -> str:
         raise MasterclassServiceError("Template de masterclass no encontrado.")
 
     return MASTERCLASS_ACCESS_TEMPLATE.read_text(encoding="utf-8")
+
+
+def load_masterclass_reminder_template(reminder_type: str) -> str:
+    reminder_config = MASTERCLASS_REMINDER_CONFIG.get(reminder_type)
+    if not reminder_config:
+        raise MasterclassServiceError("Tipo de recordatorio de masterclass invalido.")
+
+    template_path = MASTERCLASS_EMAILS_DIR / reminder_config["template"]
+    if not template_path.exists():
+        raise MasterclassServiceError("Template de recordatorio de masterclass no encontrado.")
+
+    return template_path.read_text(encoding="utf-8")
 
 
 def format_spanish_date(date_value: str) -> str:
@@ -99,6 +123,27 @@ def render_masterclass_access_template(
     return rendered_html
 
 
+def render_masterclass_reminder_template(
+    template_html: str,
+    payload: MasterclassReminderPayload,
+) -> str:
+    formatted_date = format_spanish_date(payload.fecha_masterclass)
+    formatted_time = format_argentina_time(payload.hora_masterclass)
+    replacements = {
+        "{{NOMBRE}}": escape(payload.nombre),
+        "{{MASTERCLASS_NOMBRE}}": escape(payload.masterclass_nombre),
+        "{{FECHA_MASTERCLASS_DISPLAY}}": escape(formatted_date),
+        "{{HORA_MASTERCLASS_DISPLAY}}": escape(formatted_time),
+        "{{MEET_URL}}": escape(str(payload.meet_url)),
+    }
+
+    rendered_html = template_html
+    for placeholder, value in replacements.items():
+        rendered_html = rendered_html.replace(placeholder, value)
+
+    return rendered_html
+
+
 def build_masterclass_access_text(payload: MasterclassAccessPayload) -> str:
     formatted_date = format_spanish_date(payload.fecha_masterclass)
     formatted_time = format_argentina_time(payload.hora_masterclass)
@@ -112,6 +157,21 @@ def build_masterclass_access_text(payload: MasterclassAccessPayload) -> str:
         f"Link de Google Meet: {payload.meet_url}\n\n"
         "Confirma que recibiste el acceso aca:\n"
         f"{confirmation_url}\n\n"
+        "Te recomendamos entrar unos minutos antes para probar audio, camara y conexion.\n\n"
+        "Madre Selva / Movimiento Na Lu'um"
+    )
+
+
+def build_masterclass_reminder_text(payload: MasterclassReminderPayload) -> str:
+    formatted_date = format_spanish_date(payload.fecha_masterclass)
+    formatted_time = format_argentina_time(payload.hora_masterclass)
+
+    return (
+        f"Hola {payload.nombre},\n\n"
+        f"Te recordamos tu participacion en {payload.masterclass_nombre}.\n\n"
+        f"Fecha: {formatted_date}\n"
+        f"Hora: {formatted_time}\n"
+        f"Link de Google Meet: {payload.meet_url}\n\n"
         "Te recomendamos entrar unos minutos antes para probar audio, camara y conexion.\n\n"
         "Madre Selva / Movimiento Na Lu'um"
     )
@@ -137,4 +197,36 @@ def send_masterclass_access_email(payload: MasterclassAccessPayload) -> dict[str
         )
         raise MasterclassServiceError(
             "No se pudo preparar el email de acceso a masterclass."
+        ) from exc
+
+
+def get_masterclass_reminder_email_id(reminder_type: str) -> str:
+    reminder_config = MASTERCLASS_REMINDER_CONFIG.get(reminder_type)
+    if not reminder_config:
+        raise MasterclassServiceError("Tipo de recordatorio de masterclass invalido.")
+
+    return reminder_config["email_id"]
+
+
+def send_masterclass_reminder_email(payload: MasterclassReminderPayload) -> dict[str, Any]:
+    try:
+        reminder_config = MASTERCLASS_REMINDER_CONFIG[payload.reminder_type]
+        template_html = load_masterclass_reminder_template(payload.reminder_type)
+        rendered_html = render_masterclass_reminder_template(template_html, payload)
+        return send_email_with_resend(
+            to_email=str(payload.email),
+            subject=reminder_config["subject"],
+            html=rendered_html,
+            text=build_masterclass_reminder_text(payload),
+        )
+    except ResendServiceError:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Error preparando recordatorio de masterclass. email=%s email_id=%s",
+            payload.email,
+            get_masterclass_reminder_email_id(payload.reminder_type),
+        )
+        raise MasterclassServiceError(
+            "No se pudo preparar el recordatorio de masterclass."
         ) from exc

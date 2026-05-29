@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
@@ -28,6 +28,20 @@ class MasterclassAccessPayload(BaseModel):
     )
     @classmethod
     def strip_empty_strings(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            stripped_value = value.strip()
+            return stripped_value or None
+        return value
+
+
+class MasterclassReminderPayload(MasterclassAccessPayload):
+    """Payload para enviar recordatorios previos a una masterclass."""
+
+    reminder_type: Literal["2_dias", "hoy"]
+
+    @field_validator("reminder_type", mode="before")
+    @classmethod
+    def strip_reminder_type(cls, value: Any) -> Any:
         if isinstance(value, str):
             stripped_value = value.strip()
             return stripped_value or None
