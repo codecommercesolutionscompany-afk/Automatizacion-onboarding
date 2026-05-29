@@ -86,8 +86,8 @@ def render_masterclass_access_template(
     replacements = {
         "{{NOMBRE}}": escape(payload.nombre),
         "{{MASTERCLASS_NOMBRE}}": escape(payload.masterclass_nombre),
-        "{{FECHA_MASTERCLASS}}": escape(formatted_date),
-        "{{HORA_MASTERCLASS}}": escape(formatted_time),
+        "{{FECHA_MASTERCLASS_DISPLAY}}": escape(formatted_date),
+        "{{HORA_MASTERCLASS_DISPLAY}}": escape(formatted_time),
         "{{MEET_URL}}": escape(str(payload.meet_url)),
         "{{CONFIRMATION_URL}}": escape(confirmation_url),
     }
