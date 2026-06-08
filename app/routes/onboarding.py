@@ -12,9 +12,12 @@ from app.schemas.onboarding import (
 )
 from app.services.email_templates import (
     EMAIL_SUBJECTS,
+    VOLUNTARIADO_EMAIL_SUBJECTS,
     EmailTemplateError,
     load_pdc_email_template,
+    load_voluntariado_email_template,
     render_email_template,
+    render_voluntariado_email_template,
 )
 from app.services.resend_service import ResendServiceError, send_email_with_resend
 from app.services.schedule_service import (
@@ -81,6 +84,54 @@ def _send_pdc_email(
         email_id=email_id,
         whatsapp=whatsapp,
         servicio="PDC",
+        estado_envio="sent",
+        proveedor="Resend",
+    )
+    return {
+        "resend_response": resend_response,
+        "sheet_registered": sheet_registered,
+    }
+
+
+def build_plain_text_voluntariado_email(nombre: str) -> str:
+    return (
+        f"Hola {nombre.strip()},\n\n"
+        "Te compartimos informacion importante sobre tu voluntariado en Madre Selva.\n\n"
+        "Movimiento Na Lu'um - Madre Selva"
+    )
+
+
+def _send_voluntariado_email(
+    nombre: str,
+    email: str,
+    email_id: str,
+    whatsapp: str | None = None,
+    fecha_llegada: str | None = None,
+) -> dict:
+    template_html = load_voluntariado_email_template(email_id)
+    rendered_html = render_voluntariado_email_template(
+        html=template_html,
+        nombre=nombre,
+        email=email,
+        email_id=email_id,
+        FECHA_LLEGADA=fecha_llegada or "",
+        FECHA_SALIDA="",  # Pendiente de guardar en sheet
+        LUGAR="Madre Selva, El Soberbio, Misiones",
+        HORARIO_COLABORACION="7:00 a 13:00 h",
+    )
+    resend_response = send_email_with_resend(
+        to_email=email,
+        subject=VOLUNTARIADO_EMAIL_SUBJECTS[email_id],
+        html=rendered_html,
+        text=build_plain_text_voluntariado_email(nombre),
+    )
+    logger.warning("Email enviado por Resend. email=%s email_id=%s servicio=VOLUNTARIADO", email, email_id)
+    sheet_registered = register_email_sent(
+        nombre=nombre,
+        email=email,
+        email_id=email_id,
+        whatsapp=whatsapp,
+        servicio="VOLUNTARIADO",
         estado_envio="sent",
         proveedor="Resend",
     )
@@ -351,12 +402,28 @@ def process_scheduled_emails(
             continue
 
         try:
-            send_result = _send_pdc_email(
-                nombre=str(claimed_email.get("nombre") or ""),
-                email=email,
-                email_id=email_id,
-                whatsapp=claimed_email.get("whatsapp"),
-            )
+            servicio = str(claimed_email.get("servicio") or "PDC").strip().upper()
+            nombre = str(claimed_email.get("nombre") or "")
+            whatsapp = claimed_email.get("whatsapp")
+            fecha_llegada = claimed_email.get("fecha_llegada")
+
+            if servicio == "PDC":
+                send_result = _send_pdc_email(
+                    nombre=nombre,
+                    email=email,
+                    email_id=email_id,
+                    whatsapp=whatsapp,
+                )
+            elif servicio == "VOLUNTARIADO":
+                send_result = _send_voluntariado_email(
+                    nombre=nombre,
+                    email=email,
+                    email_id=email_id,
+                    whatsapp=whatsapp,
+                    fecha_llegada=fecha_llegada,
+                )
+            else:
+                raise ValueError(f"Servicio desconocido: {servicio}")
             sheet_marked = mark_scheduled_email_sent(
                 row_number=row_number,
                 email=email,
