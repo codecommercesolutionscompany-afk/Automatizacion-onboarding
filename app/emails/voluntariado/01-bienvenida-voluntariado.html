@@ -1,10 +1,77 @@
-<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-  <p>Hola {{NOMBRE}},</p>
-  <p><strong>Hoy empieza tu camino de transformación.</strong></p>
-  <p>Te damos la más cálida bienvenida y confirmamos tu participación en el <strong>Voluntariado Otoño–Invierno</strong> en Madre Selva. Tu llegada está programada para el <strong>{{FECHA_LLEGADA}}</strong> y tu salida para el <strong>{{FECHA_SALIDA}}</strong>.</p>
-  <p>Queremos recordarte que esta es una experiencia de intercambio para colaborar con actividades concretas, vivir en comunidad y aprender desde la práctica. Requiere tu participación activa. Es importante ser claros: esto no es turismo, no es un retiro espiritual, ni tampoco hospedaje gratuito.</p>
-  <p>Lo que vivas acá no termina cuando termina la semana; puede seguir creciendo en tu forma de mirar, elegir y habitar la vida.</p>
-  <p>En los próximos correos te enviaremos información práctica para que te prepares de la mejor manera.</p>
-  <p>¡Te esperamos!</p>
-  <p>El equipo de Madre Selva</p>
-</div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bienvenida al Voluntariado</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F5F1E8; -webkit-font-smoothing: antialiased;">
+  <!-- Preheader -->
+  <div style="display: none; max-height: 0px; overflow: hidden; font-size: 0px; line-height: 0px; color: transparent;">
+    Te damos la bienvenida al Voluntariado en Madre Selva. Hoy empieza tu camino de transformación...
+  </div>
+
+  <!-- Wrapper -->
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F5F1E8; padding: 40px 15px;">
+    <tr>
+      <td align="center">
+        <!-- Card Central -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 620px; background-color: #FFFDF7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+          
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding: 40px 30px 20px 30px; border-bottom: 2px solid #DDE8D2;">
+              <h2 style="margin: 0; color: #2F4A32; font-size: 22px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">Madre Selva</h2>
+              <p style="margin: 5px 0 0 0; color: #8B6F47; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;">Movimiento Ná Lu'um</p>
+            </td>
+          </tr>
+
+          <!-- Título Principal & Frase Destacada -->
+          <tr>
+            <td style="padding: 40px 40px 20px 40px; text-align: center;">
+              <h1 style="margin: 0 0 15px 0; color: #2F4A32; font-size: 28px; font-weight: 700;">¡Hola {{NOMBRE}}!</h1>
+              <p style="margin: 0; color: #8B6F47; font-size: 18px; font-weight: 500; font-style: italic;">Hoy empieza tu camino de transformación.</p>
+            </td>
+          </tr>
+
+          <!-- Cuerpo Principal -->
+          <tr>
+            <td style="padding: 10px 40px 30px 40px; color: #4A4A4A; font-size: 16px; line-height: 1.6; text-align: left;">
+              <p style="margin: 0 0 20px 0;">Te damos la más cálida bienvenida y confirmamos tu participación en el <strong>Voluntariado Otoño–Invierno</strong> en Madre Selva.</p>
+              
+              <!-- Bloque de Datos Prácticos -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #DDE8D2; border-radius: 8px; margin: 25px 0;">
+                <tr>
+                  <td style="padding: 20px; color: #2F4A32; font-size: 15px; line-height: 1.8;">
+                    <div style="margin-bottom: 8px;"><strong>Nombre:</strong> <span style="color: #4A4A4A;">{{NOMBRE}}</span></div>
+                    <div style="margin-bottom: 8px;"><strong>Fecha de llegada:</strong> <span style="color: #4A4A4A;">{{FECHA_LLEGADA}}</span></div>
+                    <div><strong>Fecha de salida:</strong> <span style="color: #4A4A4A;">{{FECHA_SALIDA}}</span></div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Bloque Aclaratorio -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-left: 4px solid #8B6F47; background-color: #F5F1E8; margin: 25px 0;">
+                <tr>
+                  <td style="padding: 15px 20px; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
+                    <p style="margin: 0 0 10px 0; color: #2F4A32; font-weight: 600;">Es importante recordar qué es esta experiencia:</p>
+                    <ul style="margin: 0; padding-left: 20px;">
+                      <li style="margin-bottom: 5px;"><strong>No</strong> es turismo.</li>
+                      <li style="margin-bottom: 5px;"><strong>No</strong> es un retiro espiritual.</li>
+                      <li style="margin-bottom: 5px;"><strong>No</strong> es hospedaje gratuito.</li>
+                      <li><strong>Es</strong> una experiencia de intercambio, trabajo en comunidad y participación activa.</li>
+                    </ul>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 20px 0;">Lo que vivas acá no termina cuando finaliza la semana; puede seguir creciendo en tu forma de mirar, elegir y habitar la vida.</p>
+              <p style="margin: 0;">En los próximos correos te enviaremos información práctica detallada para que te prepares de la mejor manera.</p>
+            </td>
+          </tr>
+
+          <!-- Cierre -->
+          <tr>
+            <td align="center" style="padding: 0 40px 40px 40px;">
+              <p style="margin: 0 0 5px 0; color: #2F4A32; font-size: 18px; font-weight: 600;">¡Te esperamos!</p>
+</html>
