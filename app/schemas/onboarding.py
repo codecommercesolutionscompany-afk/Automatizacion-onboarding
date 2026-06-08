@@ -13,6 +13,7 @@ class LeadWebhookPayload(BaseModel):
     producto: str | None = None
     fecha_reserva: str | None = None
     fecha_llegada: str | None = None
+    fecha_salida: str | None = None
 
     @field_validator(
         "nombre",
@@ -22,6 +23,7 @@ class LeadWebhookPayload(BaseModel):
         "producto",
         "fecha_reserva",
         "fecha_llegada",
+        "fecha_salida",
         mode="before",
     )
     @classmethod

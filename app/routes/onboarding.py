@@ -24,6 +24,7 @@ from app.services.schedule_service import (
     build_pdc_email_schedule,
     parse_pdc_datetime,
 )
+from app.services.voluntariado_schedule_service import build_voluntariado_schedule
 from app.services.sheet_service import (
     check_sent_email,
     claim_due_scheduled_emails,
@@ -476,4 +477,65 @@ def send_onboarding_email(payload: SendEmailPayload) -> dict:
         "email": str(payload.email),
         "email_id": payload.email_id,
         "sheet_registered": send_result["sheet_registered"],
+    }
+
+
+@router.post("/voluntariado/preview-schedule")
+def voluntariado_preview_schedule(lead: LeadWebhookPayload) -> dict:
+    """Valida el payload de Voluntariado y genera un preview del cronograma."""
+    estado_normalizado = (lead.estado or "").strip().lower()
+    producto_normalizado = (lead.producto or "").strip().upper()
+
+    if producto_normalizado != "VOLUNTARIADO":
+        raise HTTPException(
+            status_code=400,
+            detail="Este endpoint es exclusivo para producto VOLUNTARIADO."
+        )
+
+    if estado_normalizado != "cerrado":
+        return {
+            "status": "ignored",
+            "message": f"Lead ignorado: estado es '{estado_normalizado}', se requiere 'cerrado'."
+        }
+
+    missing_fields = get_missing_contact_fields(lead)
+    if missing_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faltan datos obligatorios: {', '.join(missing_fields)}"
+        )
+
+    if not lead.fecha_llegada:
+        raise HTTPException(
+            status_code=400,
+            detail="fecha_llegada es obligatoria para Voluntariado."
+        )
+
+    llegada = parse_pdc_datetime(lead.fecha_llegada)
+    if not llegada:
+        raise HTTPException(
+            status_code=400,
+            detail="fecha_llegada tiene un formato invalido."
+        )
+
+    schedule = build_voluntariado_schedule(fecha_llegada=llegada)
+
+    return {
+        "status": "preview",
+        "producto": "VOLUNTARIADO",
+        "nombre": lead.nombre,
+        "email": str(lead.email),
+        "fecha_llegada": lead.fecha_llegada,
+        "fecha_salida": lead.fecha_salida,
+        "total_scheduled": len(schedule),
+        "scheduled_emails": [
+            {
+                "email_id": s.email_id,
+                "scheduled_at": s.scheduled_at.isoformat(timespec="seconds"),
+                "days_before_arrival": s.days_before_arrival,
+                "send_time": s.send_time,
+                "reason": s.reason
+            }
+            for s in schedule
+        ]
     }
