@@ -158,6 +158,24 @@ def send_pdc_email(
         ) from exc
 
 
+def send_voluntariado_email(
+    nombre: str,
+    email: str,
+    email_id: str,
+    whatsapp: str | None = None,
+    fecha_llegada: str | None = None,
+) -> dict:
+    try:
+        return _send_voluntariado_email(nombre, email, email_id, whatsapp, fecha_llegada)
+    except (EmailTemplateError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ResendServiceError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo enviar el email de onboarding.",
+        ) from exc
+
+
 def serialize_schedule(schedule: list[ScheduledEmail]) -> list[dict]:
     return [
         {
@@ -187,23 +205,25 @@ def build_schedule_for_payload(
 def register_schedule_rows(
     lead: LeadWebhookPayload,
     schedule: list[ScheduledEmail],
+    servicio: str = "PDC",
 ) -> tuple[int, int]:
     registered_count = 0
     duplicate_count = 0
     email = str(lead.email)
 
     for scheduled_email in schedule:
+        title = EMAIL_SUBJECTS.get(scheduled_email.email_id) or VOLUNTARIADO_EMAIL_SUBJECTS.get(scheduled_email.email_id) or ""
         result = register_scheduled_email(
             nombre=lead.nombre or "",
             email=email,
             whatsapp=lead.whatsapp,
-            servicio="PDC",
+            servicio=servicio,
             fecha_reserva=lead.fecha_reserva,
             fecha_llegada=lead.fecha_llegada,
             email_id=scheduled_email.email_id,
-            email_title=EMAIL_SUBJECTS[scheduled_email.email_id],
+            email_title=title,
             fecha_programada=scheduled_email.scheduled_at.isoformat(timespec="seconds"),
-            bloque=scheduled_email.bloque,
+            bloque=getattr(scheduled_email, "bloque", ""),
             estado="programado",
         )
         status = str(result.get("status", "")).lower()
@@ -605,4 +625,100 @@ def voluntariado_preview_schedule(lead: LeadWebhookPayload) -> dict:
             }
             for s in schedule
         ]
+    }
+
+
+@router.post("/voluntariado")
+def onboarding_webhook_voluntariado(lead: LeadWebhookPayload) -> dict:
+    """Procesa el webhook del CRM para Voluntariado y dispara el onboarding."""
+    estado_normalizado = (lead.estado or "").strip().lower()
+    producto_normalizado = (lead.producto or "").strip().upper()
+
+    if producto_normalizado != "VOLUNTARIADO":
+        raise HTTPException(
+            status_code=400,
+            detail="Este endpoint es exclusivo para producto VOLUNTARIADO."
+        )
+
+    if estado_normalizado != "cerrado":
+        return {
+            "status": "ignored",
+            "message": f"Lead ignorado: estado es '{estado_normalizado}', se requiere 'cerrado'."
+        }
+
+    missing_fields = get_missing_contact_fields(lead)
+    if missing_fields:
+        return {
+            "status": "alert",
+            "message": "No se envio el onboarding porque faltan datos obligatorios.",
+            "alert_for": "pm_sheet",
+            "missing_fields": missing_fields,
+        }
+
+    if not lead.fecha_llegada:
+        return {
+            "status": "alert",
+            "message": "fecha_llegada es obligatoria para Voluntariado.",
+            "alert_for": "pm_sheet",
+            "missing_fields": ["fecha_llegada"],
+        }
+
+    llegada = parse_pdc_datetime(lead.fecha_llegada)
+    if not llegada:
+        return {
+            "status": "alert",
+            "message": "fecha_llegada tiene un formato invalido.",
+            "alert_for": "pm_sheet",
+            "missing_fields": ["fecha_llegada"],
+        }
+
+    email_id = "01-bienvenida-voluntariado"
+    email_already_sent = check_sent_email(str(lead.email), email_id)
+    email_sent = False
+    send_result = {"sheet_registered": False, "resend_response": None}
+
+    if email_already_sent:
+        logger.warning(
+            "No se reenvia email 01 porque Apps Script reporto duplicado. email=%s",
+            lead.email,
+        )
+    else:
+        send_result = send_voluntariado_email(
+            nombre=lead.nombre or "",
+            email=str(lead.email),
+            email_id=email_id,
+            whatsapp=lead.whatsapp,
+            fecha_llegada=lead.fecha_llegada,
+        )
+        email_sent = True
+
+    schedule = build_voluntariado_schedule(fecha_llegada=llegada)
+    scheduled_registered_count = 0
+    scheduled_duplicate_count = 0
+    cm_tasks_count = 0
+    cm_tasks_duplicate_count = 0
+
+    if not schedule:
+        scheduled_count = 0
+    else:
+        scheduled_count = len(schedule)
+        scheduled_registered_count, scheduled_duplicate_count = register_schedule_rows(
+            lead,
+            schedule,
+            servicio="VOLUNTARIADO",
+        )
+
+    return {
+        "status": "sent" if email_sent else "already_sent",
+        "message": "Onboarding Voluntariado procesado correctamente.",
+        "email": str(lead.email),
+        "email_id": email_id,
+        "email_sent": email_sent,
+        "sheet_registered": send_result["sheet_registered"],
+        "resend_response": send_result["resend_response"],
+        "scheduled_count": scheduled_count,
+        "scheduled_registered_count": scheduled_registered_count,
+        "scheduled_duplicate_count": scheduled_duplicate_count,
+        "cm_tasks_count": cm_tasks_count,
+        "cm_tasks_duplicate_count": cm_tasks_duplicate_count,
     }
